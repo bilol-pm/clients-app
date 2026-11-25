@@ -3,10 +3,18 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 import datetime
 from pydantic import BaseModel, Field
+from fastapi.middleware.cors import CORSMiddleware
 
 
 DB_PATH = Path(__file__).parent / "clients.db"
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://127.0.0.1:5500"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["*"],
+)
 
 def get_connection():
     conn = sqlite3.connect(DB_PATH)
