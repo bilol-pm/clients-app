@@ -1,20 +1,9 @@
 import sqlite3
 from pathlib import Path
-from fastapi import FastAPI, HTTPException
-import datetime
-from pydantic import BaseModel, Field
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI
 
-
-DB_PATH = Path(__file__).parent / "clients.db"
+DB_PATH = Path(__file__).parent / "barber.db"
 app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://127.0.0.1:5500"],
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["*"],
-)
 
 def get_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -24,85 +13,17 @@ def get_connection():
 def init_db():
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS clients (
+    cur.execute("""CREATE TABLE IF NOT EXISTS bookings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        service TEXT NOT NULL,
         date TEXT NOT NULL,
-        time TEXT NOT NULL,
-        phone TEXT NOT NULL
-    )    
-    """)
+        start_time TEXT NOT NULL,
+        end_time TEXT NOT NULL
+    )""")
     conn.commit()
-    conn.close()    
+    conn.close()
+
 init_db()
-
-class ClientCreate(BaseModel):
-    client_name: str = Field(min_length=1)
-    date: datetime.date
-    time: datetime.time
-    phone: str = Field(pattern=r"^\+?[0-9 ]{7,15}$")
-
-class ClientUpdate(BaseModel):
-    client_name: str = Field(min_length=1)
-    date: datetime.date
-    time: datetime.time
-    phone: str = Field(pattern=r"^\+?[0-9 ]{7,15}$")
-
-@app.get("/clients")
-def get_clients():
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM clients ORDER BY date, time")
-    clients = cur.fetchall()
-    conn.close()
-    return [dict(client) for client in clients]
-
-@app.post("/clients", status_code=201)
-def create_client(client: ClientCreate):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT id FROM clients WHERE date = ? AND time = ?", (client.date.isoformat(), client.time.strftime("%H:%M")))
-    if cur.fetchone():
-        conn.close()
-        raise HTTPException(status_code=409, detail="This time is already booked")
-    cur.execute("INSERT INTO clients (client_name, date, time, phone) VALUES (?, ?, ?, ?)",
-        (client.client_name, client.date.isoformat(), client.time.strftime("%H:%M"), client.phone))
-    conn.commit()
-    new_id = cur.lastrowid
-    conn.close()
-    return {"id": new_id, "client_name": client.client_name, "date": client.date.isoformat(), "time": client.time.strftime("%H:%M"), "phone": client.phone}
-
-@app.put("/clients/{client_id}")
-def update_client(client_id: int, client: ClientUpdate):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM clients WHERE id = ?", (client_id,))
-    existing_client = cur.fetchall()
-    if not existing_client:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Client not found")
-    cur.execute("SELECT id FROM clients WHERE date = ? AND time = ? AND id != ?",
-    (client.date.isoformat(), client.time.strftime("%H:%M"), client_id))
-    if cur.fetchone():
-        conn.close()
-        raise HTTPException(status_code=409, detail="This time is already booked")
-    cur.execute("UPDATE clients SET client_name = ?, date = ?, time = ?, phone = ? WHERE id = ?",
-       (client.client_name, client.date.isoformat(), client.time.strftime("%H:%M"), client.phone, client_id))
-    conn.commit()
-    conn.close()
-    return {"id": client_id, "client_name": client.client_name, "date": client.date.isoformat(), "time": client.time.strftime("%H:%M"), "phone": client.phone}
-
-@app.delete("/clients/{client_id}")
-def delete_client(client_id: int):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM clients WHERE id = ?", (client_id,))
-    conn.commit()
-    deleted_count = cur.rowcount
-    conn.close()
-    if deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Client not found")
-    return {"deleted": client_id}
-
-    
