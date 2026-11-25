@@ -54,6 +54,10 @@ def get_clients():
 def create_client(client: ClientCreate):
     conn = get_connection()
     cur = conn.cursor()
+    cur.execute("SELECT id FROM clients WHERE date = ? AND time = ?", (client.date.isoformat(), client.time.strftime("%H:%M")))
+    if cur.fetchone():
+        conn.close()
+        raise HTTPException(status_code=409, detail="This time is already booked")
     cur.execute("INSERT INTO clients (client_name, date, time, phone) VALUES (?, ?, ?, ?)",
         (client.client_name, client.date.isoformat(), client.time.strftime("%H:%M"), client.phone))
     conn.commit()
@@ -70,6 +74,11 @@ def update_client(client_id: int, client: ClientUpdate):
     if not existing_client:
         conn.close()
         raise HTTPException(status_code=404, detail="Client not found")
+    cur.execute("SELECT id FROM clients WHERE date = ? AND time = ? AND id != ?",
+    (client.date.isoformat(), client.time.strftime("%H:%M"), client_id))
+    if cur.fetchone():
+        conn.close()
+        raise HTTPException(status_code=409, detail="This time is already booked")
     cur.execute("UPDATE clients SET client_name = ?, date = ?, time = ?, phone = ? WHERE id = ?",
        (client.client_name, client.date.isoformat(), client.time.strftime("%H:%M"), client.phone, client_id))
     conn.commit()
