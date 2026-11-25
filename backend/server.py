@@ -35,6 +35,12 @@ class ClientCreate(BaseModel):
     time: datetime.time
     phone: str = Field(pattern=r"^\+?[0-9 ]{7,15}$")
 
+class ClientUpdate(BaseModel):
+    client_name: str = Field(min_length=1)
+    date: datetime.date
+    time: datetime.time
+    phone: str = Field(pattern=r"^\+?[0-9 ]{7,15}$")
+
 @app.get("/clients")
 def get_clients():
     conn = get_connection()
@@ -55,6 +61,31 @@ def create_client(client: ClientCreate):
     conn.close()
     return {"id": new_id, "client_name": client.client_name, "date": client.date.isoformat(), "time": client.time.strftime("%H:%M"), "phone": client.phone}
 
+@app.put("/clients/{client_id}")
+def update_client(client_id: int, client: ClientUpdate):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM clients WHERE id = ?", (client_id,))
+    existing_client = cur.fetchall()
+    if not existing_client:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Client not found")
+    cur.execute("UPDATE clients SET client_name = ?, date = ?, time = ?, phone = ? WHERE id = ?",
+       (client.client_name, client.date.isoformat(), client.time.strftime("%H:%M"), client.phone, client_id))
+    conn.commit()
+    conn.close()
+    return {"id": client_id, "client_name": client.client_name, "date": client.date.isoformat(), "time": client.time.strftime("%H:%M"), "phone": client.phone}
 
+@app.delete("/clients/{client_id}")
+def delete_client(client_id: int):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM clients WHERE id = ?", (client_id,))
+    conn.commit()
+    deleted_count = cur.rowcount
+    conn.close()
+    if deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return {"deleted": client_id}
 
-
+    
