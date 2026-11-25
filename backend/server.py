@@ -1,9 +1,11 @@
 import sqlite3
 from pathlib import Path
 from fastapi import FastAPI
+import datetime
 
 DB_PATH = Path(__file__).parent / "barber.db"
 app = FastAPI()
+SERVICES = {"haircut": 30, "haircut_beard": 45}
 
 def get_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -27,3 +29,8 @@ def init_db():
     conn.close()
 
 init_db()
+
+def calculate_end_time(date, start_time, service):
+    start = datetime.datetime.combine(date, start_time)
+    end = start + datetime.timedelta(minutes=SERVICES.get(service, 30))
+    return end.strftime("%H:%M")
